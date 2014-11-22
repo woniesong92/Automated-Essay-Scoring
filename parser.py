@@ -12,6 +12,7 @@ class Parser:
                 lines.append(line)
             columns = lines[0]
             data = lines[1:]
+            # pdb.set_trace()
             # each essay will be represented as a dictionary
             # example: train_example["essay_id"] will return the essay_id of the train example
             train_examples = []
@@ -21,5 +22,5 @@ class Parser:
                 for column in columns:
                     train_example[column] = datum[i]
                     i += 1
-                    train_examples.append(train_example)
+                train_examples.append(train_example)
             return train_examples
