@@ -115,33 +115,29 @@ if __name__ == "__main__":
         value = example
         training_dict[key] = value
 
-
-
-
-
     myFeatureExtractor = FeatureExtractor()
-    # train_matrix = myFeatureExtractor.transform_training_examples(training_examples[:5])
-    # train_pkl = open("train_essay_set_1.pkl", "w+")
-    # pickle.dump(train_matrix, train_pkl)
+    train_matrix = myFeatureExtractor.transform_training_examples(training_examples[:5])
+    train_pkl = open("train_essay_set_1.pkl", "w+")
+    pickle.dump(train_matrix, train_pkl)
 
 
-    test_examples = myParser.parse("data/test_set.tsv")
-    test_examples = list(filter(lambda x: x["essay_set"]== "1", test_examples))
+    # test_examples = myParser.parse("data/test_set.tsv")
+    # test_examples = list(filter(lambda x: x["essay_set"]== "1", test_examples))
 
-    pdb.set_trace()
+    # pdb.set_trace()
 
-    test_examples_new = []
-    for example in test_examples:
-        score = training_dict[example["domain1_predictionid"]]["domain1_score"]
-        example["domain1_score"] = score
-        test_examples_new.append(example)
-
-
+    # test_examples_new = []
+    # for example in test_examples:
+    #     score = training_dict[example["domain1_predictionid"]]["domain1_score"]
+    #     example["domain1_score"] = score
+    #     test_examples_new.append(example)
 
 
-    test_matrix = myFeatureExtractor.transform_training_examples(test_examples_new)
-    test_pkl = open("test_essay_set_1.pkl", "w+")
-    pickle.dump(test_matrix, test_pkl)
+
+
+    # test_matrix = myFeatureExtractor.transform_training_examples(test_examples_new)
+    # test_pkl = open("test_essay_set_1.pkl", "w+")
+    # pickle.dump(test_matrix, test_pkl)
 
 
 
