@@ -52,7 +52,6 @@ def tokenize_no_stop_words(text):
     tokens = nltk.word_tokenize(text)
     #stems = stem_tokens(tokens, stemmer)
     filtered_words = [w for w in tokens if not w in stoplist]
-
     return filtered_words
 
 
@@ -99,7 +98,7 @@ if __name__ == "__main__":
     #         print myDict.get(f)
     #pdb.set_trace()
 
-    num_topics_for_lda = 20
+    num_topics_for_lda = 30
     lda = gensim.models.ldamodel.LdaModel(corpus, id2word = myDict, num_topics=num_topics_for_lda, iterations=1000, passes=10)
     topic_vectors = []
     for doc in corpus:
@@ -108,7 +107,7 @@ if __name__ == "__main__":
         topic_vectors.append(topic_vector)
     print "======= PREPARED TOPIC VECTORS ======"
     
-    neigh = knn(n_neighbors=3)
+    neigh = knn(n_neighbors=5)
     neigh.fit(topic_vectors, scores)
 
     print "======= PREPARED KNN, NOW LOAD TEST SET ======"

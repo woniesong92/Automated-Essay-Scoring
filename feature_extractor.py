@@ -105,9 +105,9 @@ class FeatureExtractor:
 if __name__ == "__main__":
     myParser = parser.Parser()
     training_examples = myParser.parse("data/training_set_rel3.tsv")
+    #training_examples = myParser.parse("data/set1_train.tsv")
 
-    training_examples_filtered = list(filter(lambda x: x["essay_set"]== "1", training_examples))
-
+    #training_examples_filtered = list(filter(lambda x: x["essay_set"]== "1", training_examples))
 
     training_dict = {}
     for example in training_examples:
