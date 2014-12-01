@@ -41,19 +41,19 @@ def topic_distribution_to_vector(topic_distribution, num_topics):
     return vector
 
 #with stemming
+def tokenize_no_stop_words(text):
+    tokens = nltk.word_tokenize(text)
+    stems = stem_tokens(tokens, stemmer)
+    filtered_words = [w for w in stems if not w in stoplist]
+    return filtered_words
+
+#FIXME: without stemming
 # def tokenize_no_stop_words(text):
 #     tokens = nltk.word_tokenize(text)
 #     stems = stem_tokens(tokens, stemmer)
-#     filtered_words = [w for w in stems if not w in stoplist]
+#     filtered_words = [w for w in tokens if not w in stoplist]
+
 #     return filtered_words
-
-#FIXME: without stemming
-def tokenize_no_stop_words(text):
-    tokens = nltk.word_tokenize(text)
-    #stems = stem_tokens(tokens, stemmer)
-    filtered_words = [w for w in tokens if not w in stoplist]
-
-    return filtered_words
 
 
 def get_best_features(corpus, scores, num_features):
@@ -66,11 +66,11 @@ def get_best_features(corpus, scores, num_features):
     v = DictVectorizer()
     X = v.fit_transform(new_corpus)
     y = scores
-    # pdb.set_trace()
+    pdb.set_trace()
     feature_selection = SelectKBest(chi2, k=num_features).fit(X, y)
     new_X = SelectKBest(chi2, k=num_features).fit(X, y)
 
-    return (gensim.matutils.Sparse2Corpus(new_X.transform(X)), y, feature_selection.get_support())
+    return feature_selection.get_support()
 
 
 if __name__ == "__main__":
@@ -86,19 +86,28 @@ if __name__ == "__main__":
 
     myDict = gensim.corpora.dictionary.Dictionary(new_essays)
 
-    #myDict.filter_extremes(no_below=1, no_above=0.1, keep_n=100000) # FIXME: to include or not?
+    # myDict.filter_extremes(no_below=1, no_above=0.1, keep_n=100000) # FIXME: to include or not?
 
     corpus = [myDict.doc2bow(text) for text in texts]
 
     corpus_old = corpus
 
-    #corpus, scores, features = get_best_features(corpus, scores, 'all') #feature selected corpus
+    # pdb.set_trace()
+
+    bad_good_features = get_best_features(corpus, scores, 10093-100) #feature selected corpus
+    bad_ids = []
+    for i in range(len(bad_good_features)):
+        if not bad_good_features[i]:
+            bad_ids.append(bad_good_features[i])
+    myDict.filter_tokens(bad_ids=bad_ids)
+
 
     # for f in range(len(features)):
     #     if features[f]:
     #         print myDict.get(f)
     #pdb.set_trace()
 
+    corpus = [myDict.doc2bow(text) for text in texts]
     num_topics_for_lda = 20
     lda = gensim.models.ldamodel.LdaModel(corpus, id2word = myDict, num_topics=num_topics_for_lda, iterations=1000, passes=10)
     topic_vectors = []
@@ -108,7 +117,8 @@ if __name__ == "__main__":
         topic_vectors.append(topic_vector)
     print "======= PREPARED TOPIC VECTORS ======"
     
-    neigh = knn(n_neighbors=3)
+    neigh = knn(n_neighbors=5)
+    pdb.set_trace()
     neigh.fit(topic_vectors, scores)
 
     print "======= PREPARED KNN, NOW LOAD TEST SET ======"
