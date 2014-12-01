@@ -99,7 +99,7 @@ if __name__ == "__main__":
     #pdb.set_trace()
 
     num_topics_for_lda = 30
-    lda = gensim.models.ldamodel.LdaModel(corpus, id2word = myDict, num_topics=num_topics_for_lda, iterations=1000, passes=10)
+    lda = gensim.models.ldamodel.LdaModel(corpus, id2word = myDict, num_topics=num_topics_for_lda, iterations=1000, passes=100)
     topic_vectors = []
     for doc in corpus:
         topic_distribution = lda[doc]
