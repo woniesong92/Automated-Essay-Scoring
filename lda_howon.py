@@ -25,6 +25,7 @@ f = open('stopwords.txt')
 stoplist = set(line.split('\n')[0] for line in f)
 
 
+
 def essays_tokenized(essays):
     pass
 
@@ -97,7 +98,7 @@ if __name__ == "__main__":
     # myDict.filter_extremes(no_below=1, no_above=0.1, keep_n=100000) # FIXME: to include or not?
 
     corpus = [myDict.doc2bow(text) for text in texts]
-
+    
     corpus_old = corpus
 
     # pdb.set_trace()
