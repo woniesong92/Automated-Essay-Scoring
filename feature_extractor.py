@@ -1,10 +1,12 @@
 import parser
 from tfidf_vectorizer import Tfidf_Vectorizer
+from sklearn.feature_extraction.text import CountVectorizer
 import re
 import pdb
 import numpy as np
 import pickle
 import nltk
+import threading
 
 
 tag_dict = {'CC':0,'CD':1,'DT':2,'EX':3,'FW':4,'IN':5,'JJ':6,'JJR':7,'JJS':8,
@@ -36,11 +38,12 @@ class FeatureExtractor:
     # 5. Part of speech tagging
     # TODO: parse trees' complexity?
     def transform_training_examples(self, train_examples):
-        pdb.set_trace()
+        # pdb.set_trace()
         essays, scores = self.extract_essay_and_scores(train_examples)
         # 1. tfidf 
         tfidf_vectorizer = Tfidf_Vectorizer()
         (tfidf, tfs) = tfidf_vectorizer.get_tfidf_vectors(essays)
+        # pdb.set_trace()
         matrix = np.array(tfs.todense())
         print "DONE TFIDF"
         # 2. word count
@@ -57,14 +60,45 @@ class FeatureExtractor:
         print "AVERAGE LENGTH OF WORDS"
 
         # 5. part of speech tagging
-        pos_distributions = [self.part_of_speech_tagging(essay) for essay in essays]
-        print "TAGGING DONE"
-        matrix = np.concatenate((pos_distributions, matrix),1)
+        # pos_distributions = [self.part_of_speech_tagging(essay) for essay in essays]
+        # print "TAGGING DONE"
+        # matrix = np.concatenate((pos_distributions, matrix),1)
 
-        print "UPDATED TAGGING WITH MATRIX"
+        # print "UPDATED TAGGING WITH MATRIX"
 
         # Add the scores 
-        matrix = self.update_matrix(matrix, scores)
+        # matrix = self.update_matrix(matrix, scores)
+
+        return matrix, tfidf
+
+    def transform_test_examples(self, test_examples, tfidf):
+        essays, scores = self.extract_essay_and_scores(test_examples)
+        # 1. tfidf
+        matrix = np.array(tfidf.transform(essays).todense())
+        # pdb.set_trace()
+        print "DONE TFIDF"
+        # 2. word count
+        word_counts_features = [len(essay.split()) for essay in essays]
+        matrix = self.update_matrix(matrix, word_counts_features)
+        print "DONE WORD COUNT"
+        # 3. number of different words
+        num_diff_words_features = [self.num_diff_words(essay) for essay in essays]
+        matrix = self.update_matrix(matrix, num_diff_words_features)
+        print "DONE NUM DIFF WORDS"
+        # 4. average length of words
+        words_avg_length_features = [self.words_avg_length(essay) for essay in essays]
+        matrix = self.update_matrix(matrix, words_avg_length_features)
+        print "AVERAGE LENGTH OF WORDS"
+
+        # 5. part of speech tagging
+        # pos_distributions = [self.part_of_speech_tagging(essay) for essay in essays]
+        # print "TAGGING DONE"
+        # matrix = np.concatenate((pos_distributions, matrix),1)
+
+        # print "UPDATED TAGGING WITH MATRIX"
+
+        # Add the scores 
+        # matrix = self.update_matrix(matrix, scores)
 
         return matrix
 
@@ -102,23 +136,70 @@ class FeatureExtractor:
         count = [float(pos)/total for pos in count]
         return np.array(count)
 
+class Worker(threading.Thread):
+    def __init__(self, i):
+        threading.Thread.__init__(self)
+        self.i=i
+
+    def run(self):
+        i = self.i
+        myParser = parser.Parser()
+        myFeatureExtractor = FeatureExtractor()
+        training_examples = myParser.parse("data/set%d_train.tsv" % i)
+        test_examples = myParser.parse("data/set%d_test.tsv" % i)
+
+        train_matrix, tfidf = myFeatureExtractor.transform_training_examples(training_examples)
+        test_matrix = myFeatureExtractor.transform_test_examples(test_examples, tfidf)
+        
+        train_pkl = open("data/set_%d_train_matrix.pkl" % i, "w+")
+        test_pkl = open("data/set_%d_test_matrix.pkl" % i, "w+")
+
+        pickle.dump(train_matrix, train_pkl)
+        pickle.dump(test_matrix, test_pkl)
+
+        train_pkl.close()
+        test_pkl.close()
+
+
+
+
+
 if __name__ == "__main__":
     myParser = parser.Parser()
-    training_examples = myParser.parse("data/training_set_rel3.tsv")
-    #training_examples = myParser.parse("data/set1_train.tsv")
-
-    #training_examples_filtered = list(filter(lambda x: x["essay_set"]== "1", training_examples))
-
-    training_dict = {}
-    for example in training_examples:
-        key = example["essay_id"]
-        value = example
-        training_dict[key] = value
-
     myFeatureExtractor = FeatureExtractor()
-    train_matrix = myFeatureExtractor.transform_training_examples(training_examples[:5])
-    train_pkl = open("train_essay_set_1.pkl", "w+")
-    pickle.dump(train_matrix, train_pkl)
+    for i in range(1,9):
+        worker = Worker(i)
+        worker.start() 
+        # SEQUENTIAL
+        # training_examples = myParser.parse("data/set%d_train.tsv" % i)
+        # test_examples = myParser.parse("data/set%d_test.tsv" % i)
+
+        # train_matrix, tfidf = myFeatureExtractor.transform_training_examples(training_examples)
+        # test_matrix = myFeatureExtractor.transform_test_examples(test_examples, tfidf)
+        
+        # train_pkl = open("data/set_%d_train_matrix.pkl" % i, "w+")
+        # test_pkl = open("data/set_%d_test_matrix.pkl" % i, "w+")
+
+        # pickle.dump(train_matrix, train_pkl)
+        # pickle.dump(test_matrix, test_pkl)
+
+
+
+
+
+    # training_examples = myParser.parse("data/training_set_rel3.tsv")
+    # #training_examples = myParser.parse("data/set1_train.tsv")
+
+    # #training_examples_filtered = list(filter(lambda x: x["essay_set"]== "1", training_examples))
+
+    # training_dict = {}
+    # for example in training_examples:
+    #     key = example["essay_id"]
+    #     value = example
+    #     training_dict[key] = value
+
+    
+    
 
 
     # test_examples = myParser.parse("data/test_set.tsv")
