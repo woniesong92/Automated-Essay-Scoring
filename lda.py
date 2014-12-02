@@ -190,7 +190,7 @@ def main():
         for doc in corpus:
             topic_distribution = lda[doc]
             topic_vector = topic_distribution_to_vector(topic_distribution, num_topics_for_lda)
-            topic_vectors.append(topic_vector)
+            topic_vectors.append(normalize(topic_vector))
         print colored('PREPARED TOPIC VECTORS', 'cyan')
 
         neigh = knn(n_neighbors=5)
