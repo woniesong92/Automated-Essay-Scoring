@@ -3,6 +3,7 @@ import parser
 import feature_extractor
 import pickle
 import re
+import math
 import pdb
 import nltk
 import logging, gensim, bz2
@@ -158,7 +159,10 @@ def get_test_features(i):
     features = pickle.load(open("data/set_%d_test_matrix.pkl" % i, 'r'))
     return features
 
-
+# return normalized vector
+def normalize(vector):
+    mag = math.sqrt(sum([value * value for value in vector]))
+    return [value/float(mag) for value in vector]
 
 
 ###################
