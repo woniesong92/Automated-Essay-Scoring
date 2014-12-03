@@ -64,13 +64,16 @@ class FeatureExtractor:
         matrix = self.update_matrix(matrix, words_avg_length_features)
 
         # 4. spelling errors
-        spelling_errors = self.l2_norm([self.spelling_errors(essay) for essay in essays])
+        spelling_errors = self.l1_norm([self.spelling_errors(essay) for essay in essays])
         matrix = self.update_matrix(matrix, spelling_errors)
 
         print "DONE AVERAGE LENGTH OF WORDS"
 
 
         # 5. part of speech 
+        pos_distributions = self.l1_norm([self.part_of_speech_tagging(essay) for essay in essays])
+        matrix = np.concatenate((pos_distributions, matrix),1)
+        print "DONE TAGGING"
 
 
 
@@ -95,6 +98,11 @@ class FeatureExtractor:
         # 4. spelling errors
         spelling_errors = [self.spelling_errors(essay) for essay in essays]
         matrix = self.update_matrix(matrix, spelling_errors)
+
+        # 5. part of speech 
+        pos_distributions = [self.part_of_speech_tagging(essay) for essay in essays]
+        matrix = np.concatenate((pos_distributions, matrix),1)
+        print "DONE TAGGING"
 
         return matrix
 
