@@ -19,7 +19,7 @@ class Parser:
                        'rater2_trait1',   'rater2_trait2',   'rater2_trait3',   'rater2_trait4',   'rater2_trait5',   'rater2_trait6',   
                        'rater3_trait1',   'rater3_trait2',   'rater3_trait3',   'rater3_trait4',   'rater3_trait5',   'rater3_trait6']
 
-            data = lines[1:]
+            data = lines
             # each essay will be represented as a dictionary
             # example: train_example["essay_id"] will return the essay_id of the train example
             train_examples = []

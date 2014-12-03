@@ -6,6 +6,7 @@ import re
 import math
 import pdb
 import nltk
+import enchant
 import logging, gensim, bz2
 from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction import DictVectorizer
@@ -97,7 +98,7 @@ def stem_tokens(tokens, stemmer):
         return stemmed
 
 def remove_symbols(essay):
-    return re.sub(r'[^\w]', ' ', essay.lower())
+    return re.sub(r'[^\w]', '', essay.lower())
 
 # Returns tokenized essay, scores
 def create_texts(essay_set):
@@ -105,16 +106,35 @@ def create_texts(essay_set):
     myFeatureExtractor = feature_extractor.FeatureExtractor()
     training_examples = myParser.parse('data/set%d_train.tsv' % essay_set)
     essays, scores = myFeatureExtractor.extract_essay_and_scores(training_examples) #list of raw essays and their scores
-    documents = [remove_symbols(training_example['essay']) for training_example in training_examples]
+    
+    # raw essays
+    documents = [training_example['essay'] for training_example in training_examples]
 
-    # remove common words
     f = open('stopwords.txt')
+    dt = enchant.Dict("en_US")
     stoplist = set(line.split('\n')[0] for line in f)
-    texts = [[word for word in document.lower().split() if word not in stoplist] for document in documents]
-    print colored('common words removed', 'cyan')
+    
+    # remove common words, correct misspelled words, and remove symbols
+    texts = []
+    for document in documents:
+        text = []
+        for word in document.lower().split():
+            word = remove_symbols(word)
+            if word != '':
+                if dt.check(word) and word not in stoplist:
+                    text.append(word)
+                elif not dt.check(word):
+                    suggestions = dt.suggest(word)
+                    if len(suggestions) > 0:
+                        word = suggestions[0]
+                        if word not in stoplist:
+                            text.append(word)
+        texts.append(text)
+
+    # texts = [[word for word in document.lower().split() if word not in stoplist] for document in documents]
 
     # stemming
-    texts = [stem_tokens(text, PorterStemmer()) for text in texts]
+    # texts = [stem_tokens(text, PorterStemmer()) for text in texts]
 
 
     """
@@ -184,117 +204,115 @@ def get_test_features(i):
 
 # Dictionaries and corpus are already saved 
 def main():
-    # setUp()
+    setUp()
 
-    myParser = parser.Parser()
-    myFeatureExtractor = feature_extractor.FeatureExtractor()
-    num_topics_for_lda = 30
+    # myParser = parser.Parser()
+    # myFeatureExtractor = feature_extractor.FeatureExtractor()
+    # num_topics_for_lda = 30
     
-    # Iterate over 8 essay sets
-    for essay_set in xrange(1,9): 
+    # # Iterate over 8 essay sets
+    # for essay_set in xrange(1,9): 
 
-        ####################
-        #       LDA        #
-        ####################
-        # prepare dictionary and corpus
-        myDict = gensim.corpora.Dictionary.load('data/set%d.dict' % essay_set)
-        corpus = gensim.corpora.MmCorpus('data/set%d.mm' % essay_set)
+    #     ####################
+    #     #       LDA        #
+    #     ####################
+    #     # prepare dictionary and corpus
+    #     myDict = gensim.corpora.Dictionary.load('data/set%d.dict' % essay_set)
+    #     corpus = gensim.corpora.MmCorpus('data/set%d.mm' % essay_set)
 
-        lda = gensim.models.LdaModel(corpus=corpus, id2word=myDict, num_topics=num_topics_for_lda, iterations=1000, passes=3)
+    #     lda = gensim.models.LdaModel(corpus=corpus, id2word=myDict, num_topics=num_topics_for_lda, iterations=1000, passes=3)
 
-        topic_vectors = []
-        for doc in corpus:
-            topic_distribution = lda[doc]
-            topic_vector = topic_distribution_to_vector(topic_distribution, num_topics_for_lda)
-            topic_vectors.append(topic_vector) # normalize
-        print colored('PREPARED TOPIC VECTORS', 'cyan')
+    #     topic_vectors = []
+    #     for doc in corpus:
+    #         topic_distribution = lda[doc]
+    #         topic_vector = topic_distribution_to_vector(topic_distribution, num_topics_for_lda)
+    #         topic_vectors.append(topic_vector) # normalize
+    #     print colored('PREPARED TOPIC VECTORS', 'cyan')
 
-        neigh = knn(n_neighbors=5, weights = 'distance')
-        svm_classifier = svm()
-        svr_classifier = svr()
-        knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
+    #     neigh = knn(n_neighbors=5, weights = 'distance')
+    #     svm_classifier = svm()
+    #     svr_classifier = svr()
+    #     knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
 
-        scores = []
-        with open('data/set%d.scores' % essay_set) as f:
-            for score in f:
-                scores.append(int(score.split('\n')[0]))
+    #     scores = []
+    #     with open('data/set%d.scores' % essay_set) as f:
+    #         for score in f:
+    #             scores.append(int(score.split('\n')[0]))
 
-        #######################################
-        #       TFIDF + other features        #
-        #######################################
-        train_features_old = get_train_features(essay_set)
-        train_features = train_features_old
-        # train_features = np.concatenate((topic_vectors, train_features_old), 1)
-        print colored('PREPARED TFIDF + OTHER FEATURES VECTORS', 'cyan')
+    #     #######################################
+    #     #       TFIDF + other features        #
+    #     #######################################
+    #     train_features_old = get_train_features(essay_set)
+    #     train_features = train_features_old
+    #     # train_features = np.concatenate((topic_vectors, train_features_old), 1)
+    #     print colored('PREPARED TFIDF + OTHER FEATURES VECTORS', 'cyan')
 
-        ###############################
-        #       CLASSIFICATION        #
-        ###############################
-        neigh.fit(train_features, scores)
-        svm_classifier.fit(train_features, scores)
-        knnr_classifier.fit(train_features, scores)
-        print colored('PREPARED KNN, NOW LOAD TEST SET', 'cyan')
+    #     ###############################
+    #     #       CLASSIFICATION        #
+    #     ###############################
+    #     neigh.fit(train_features, scores)
+    #     svm_classifier.fit(train_features, scores)
+    #     knnr_classifier.fit(train_features, scores)
+    #     print colored('PREPARED KNN, NOW LOAD TEST SET', 'cyan')
 
 
-        test_examples = myParser.parse("data/set%d_test.tsv" % essay_set)
-        test_essays, test_scores = myFeatureExtractor.extract_essay_and_scores(test_examples) #list of raw essays and their scores
-        new_test_essays = [tokenize_no_stop_words(essay) for essay in test_essays]
+    #     test_examples = myParser.parse("data/set%d_test.tsv" % essay_set)
+    #     test_essays, test_scores = myFeatureExtractor.extract_essay_and_scores(test_examples) #list of raw essays and their scores
+    #     new_test_essays = [tokenize_no_stop_words(essay) for essay in test_essays]
 
-        #myDict.add_documents(new_test_essays)
+    #     #myDict.add_documents(new_test_essays)
 
-        num_correct_neigh = 0
-        num_correct_svm = 0
-        num_correct_svr = 0
+    #     num_correct_neigh = 0
+    #     num_correct_svm = 0
+    #     num_correct_svr = 0
 
-        index = 0
-        test_features = get_test_features(essay_set)
+    #     index = 0
+    #     test_features = get_test_features(essay_set)
         
-        predicted = []
-        actual = []
+    #     predicted = []
+    #     actual = []
 
-        for idx, test_essay in enumerate(new_test_essays):
-            doc_bow = myDict.doc2bow(test_essay)
-            doc_lda = lda[doc_bow]
+    #     for idx, test_essay in enumerate(new_test_essays):
+    #         doc_bow = myDict.doc2bow(test_essay)
+    #         doc_lda = lda[doc_bow]
             
-            vectorized_lda = topic_distribution_to_vector(doc_lda, num_topics_for_lda)
-            # test_feature = np.concatenate((vectorized_lda, test_features[index]), 1)
-            test_feature = test_features[index]
+    #         vectorized_lda = topic_distribution_to_vector(doc_lda, num_topics_for_lda)
+    #         # test_feature = np.concatenate((vectorized_lda, test_features[index]), 1)
+    #         test_feature = test_features[index]
             
 
-            # pdb.set_trace()
-            predicted_score = neigh.predict(test_feature)
-            # print "Actual:", test_scores[idx], "Predicted:", predicted_score
-            if abs(int(test_scores[idx]) - int(predicted_score[0])) <= 1:
-                num_correct_neigh += 1
+    #         # pdb.set_trace()
+    #         predicted_score = neigh.predict(test_feature)
+    #         # print "Actual:", test_scores[idx], "Predicted:", predicted_score
+    #         if abs(int(test_scores[idx]) - int(predicted_score[0])) <= 1:
+    #             num_correct_neigh += 1
 
-            predicted_score2 = svm_classifier.predict(test_feature)
-            if abs(int(test_scores[idx]) - int(predicted_score2[0])) <= 1:
-                num_correct_svm += 1
+    #         predicted_score2 = svm_classifier.predict(test_feature)
+    #         if abs(int(test_scores[idx]) - int(predicted_score2[0])) <= 1:
+    #             num_correct_svm += 1
 
-            print "Actual:", test_scores[idx], "Predicted:", predicted_score
+    #         print "Actual:", test_scores[idx], "Predicted:", predicted_score
 
-            predicted.append(float(knnr_classifier.predict(test_feature)))
-            actual.append(float(test_scores[idx]))
+    #         predicted.append(float(knnr_classifier.predict(test_feature)))
+    #         actual.append(float(test_scores[idx]))
 
-            index += 1
-
-
-        print colored('DONE', 'green', attrs=['bold'])
-
-        accuracy_knn = num_correct_neigh / float(len(test_scores))
-        accuracy_svm = num_correct_svm / float(len(test_scores))
+    #         index += 1
 
 
+    #     print colored('DONE', 'green', attrs=['bold'])
+
+    #     accuracy_knn = num_correct_neigh / float(len(test_scores))
+    #     accuracy_svm = num_correct_svm / float(len(test_scores))
 
 
-        print colored('ESSAY SET %d KNN ACCURACY: %f' % (essay_set, 100*accuracy_knn), 'green', attrs=['bold'])
-
-        print colored('ESSAY SET %d SVM ACCURACY: %f' % (essay_set, 100*accuracy_svm), 'green', attrs=['bold'])
-        print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (essay_set, mean_squared_error(actual, predicted)), 'green', attrs=['bold'])
-        print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (essay_set, mean_absolute_error(actual, predicted)), 'green', attrs=['bold'])
 
 
-        pdb.set_trace()
+    #     print colored('ESSAY SET %d KNN ACCURACY: %f' % (essay_set, 100*accuracy_knn), 'green', attrs=['bold'])
+
+    #     print colored('ESSAY SET %d SVM ACCURACY: %f' % (essay_set, 100*accuracy_svm), 'green', attrs=['bold'])
+    #     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (essay_set, mean_squared_error(actual, predicted)), 'green', attrs=['bold'])
+    #     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (essay_set, mean_absolute_error(actual, predicted)), 'green', attrs=['bold'])
+
 
 if __name__ == "__main__":
     main()      

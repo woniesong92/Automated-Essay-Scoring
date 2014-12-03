@@ -6,6 +6,7 @@ import re
 import math
 import pdb
 import nltk
+import enchant
 import logging, gensim, bz2
 from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction import DictVectorizer
@@ -19,6 +20,9 @@ from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 
 import numpy as np
+
+
+logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 
 ###########################
@@ -65,12 +69,37 @@ def get_lda(i, iterations, passes, num_topics_for_lda):
 def get_test_examples(i):
     test_examples = parser.Parser().parse("data/set%d_test.tsv" % i)
     test_essays, test_scores = feature_extractor.FeatureExtractor().extract_essay_and_scores(test_examples) #list of raw essays and their scores
-    return ([tokenize_no_stop_words(essay) for essay in test_essays], test_scores)
+    return ([tokenize(essay) for essay in test_essays], test_scores)
 
 
 #############################
 #       HELPER METHODS      #
 #############################
+
+def remove_symbols(essay):
+    return re.sub(r'[^\w]', '', essay.lower())
+
+def tokenize(text):
+    tokenized_text = []
+
+    f = open('stopwords.txt')
+    dt = enchant.Dict("en_US")
+    stoplist = set(line.split('\n')[0] for line in f)
+
+    for word in text.lower().split():
+        word = remove_symbols(word)
+        if word != '':
+            if dt.check(word) and word not in stoplist:
+                tokenized_text.append(word)
+            elif not dt.check(word):
+                suggestions = dt.suggest(word)
+                if len(suggestions) > 0:
+                    word = suggestions[0]
+                    if word not in stoplist:
+                        tokenized_text.append(word)
+
+    return tokenized_text
+
 
 def tokenize_no_stop_words(text):
     tokens = nltk.word_tokenize(text)
@@ -96,11 +125,21 @@ def get_best_features(corpus, scores, num_features):
     v = DictVectorizer()
     X = v.fit_transform(new_corpus)
     y = scores
-    # pdb.set_trace()
     feature_selection = SelectKBest(chi2, k=num_features).fit(X, y)
     new_X = SelectKBest(chi2, k=num_features).fit(X, y)
 
     return feature_selection.get_support()
+
+def filter_nan(actual, predicted):
+    filtered_actual = []
+    filtered_predicted = [] 
+
+    for a,p in zip(actual,predicted):
+        if not math.isnan(p):
+            filtered_actual.append(a)
+            filtered_predicted.append(p)
+
+    return (filtered_actual, filtered_predicted)
 
 
 ###########################
@@ -111,7 +150,7 @@ def combined_test(i):
     tfidf_vectors = get_tfidf(i, 'train')
     extra_features_vector = get_extra_features(i, 'train')
     num_topics_for_lda = 30
-    lda,lda_vector = get_lda(i, 100, 1, num_topics_for_lda)
+    lda,lda_vector = get_lda(i, 100, 10, num_topics_for_lda)
     train_features = np.concatenate((tfidf_vectors,extra_features_vector),1)
     train_features = np.concatenate((lda_vector,train_features),1)
     
@@ -123,34 +162,28 @@ def combined_test(i):
     tfidf_train_features = tfidf_vectors
     extra_features_train_features = extra_features_vector
     lda_train_features = lda_vector
+    tfidf_extra_train_features = np.concatenate((tfidf_vectors,extra_features_vector),1)
 
     print colored('feature vectors loaded', 'cyan')
 
     # Set up classifiers
-    neigh = knn(n_neighbors=5, weights = 'distance')
-    svm_classifier = svm()
-    svr_classifier = svr()
     knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
+    svr_classifier = svr()
 
-    normalized_neigh = knn(n_neighbors=5, weights = 'distance')
-    normalized_svm_classifier = svm()
-    normalized_svr_classifier = svr()
     normalized_knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
+    normalized_svr_classifier = svr()
 
-    tfidf_neigh = knn(n_neighbors=5, weights = 'distance')
-    tfidf_svm_classifier = svm()
-    tfidf_svr_classifier = svr()
     tfidf_knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
+    tfidf_svr_classifier = svr()
 
-    extra_features_neigh = knn(n_neighbors=5, weights = 'distance')
-    extra_features_svm_classifier = svm()
+    extra_features_knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
     extra_features_svr_classifier = svr()
-    extra_features_knnr_classifier = knnR(n_neighbors=5)
 
-    lda_neigh = knn(n_neighbors=5, weights = 'distance')
-    lda_svm_classifier = svm()
-    lda_svr_classifier = svr()
     lda_knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
+    lda_svr_classifier = svr()
+
+    tfidf_extra_knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
+    tfidf_extra_svr_classifier = svr()
 
     print colored('classifiers setup', 'cyan')
 
@@ -165,47 +198,25 @@ def combined_test(i):
     corpus = gensim.corpora.MmCorpus('data/set%d.mm' % i)
 
     # train classifiers
-    neigh.fit(train_features, scores)
-    svm_classifier.fit(train_features, scores)
     knnr_classifier.fit(train_features, scores)
+    svr_classifier.fit(train_features, scores)
 
-    normalized_neigh.fit(normalized_train_features, scores)
-    normalized_svm_classifier.fit(normalized_train_features, scores)
     normalized_knnr_classifier.fit(normalized_train_features, scores)
+    normalized_svr_classifier.fit(normalized_train_features, scores)
 
-    tfidf_neigh.fit(tfidf_train_features, scores)
-    tfidf_svm_classifier.fit(tfidf_train_features, scores)
     tfidf_knnr_classifier.fit(tfidf_train_features, scores)
+    tfidf_svr_classifier.fit(tfidf_train_features, scores)
 
-    extra_features_neigh.fit(extra_features_train_features, scores)
-    extra_features_svm_classifier.fit(extra_features_train_features, scores)
     extra_features_knnr_classifier.fit(extra_features_train_features, scores)
+    extra_features_svr_classifier.fit(extra_features_train_features, scores)
 
-    lda_neigh.fit(lda_train_features, scores)
-    lda_svm_classifier.fit(lda_train_features, scores)
     lda_knnr_classifier.fit(lda_train_features, scores)
+    lda_svr_classifier.fit(lda_train_features, scores)
+
+    tfidf_extra_knnr_classifier.fit(tfidf_extra_train_features, scores)
+    tfidf_extra_svr_classifier.fit(tfidf_extra_train_features, scores)
 
     test_essays,test_scores = get_test_examples(i)
-
-    num_correct_neigh = 0
-    num_correct_svm = 0
-    num_correct_svr = 0
-
-    num_correct_normalized_neigh = 0
-    num_correct_normalized_svm = 0
-    num_correct_normalized_svr = 0
-
-    num_correct_tfidf_neigh = 0
-    num_correct_tfidf_svm = 0
-    num_correct_tfidf_svr = 0
-
-    num_correct_extra_features_neigh = 0
-    num_correct_extra_features_svm = 0
-    num_correct_extra_features_svr = 0
-
-    num_correct_lda_neigh = 0
-    num_correct_lda_svm = 0
-    num_correct_lda_svr = 0
 
     index = 0
 
@@ -214,7 +225,6 @@ def combined_test(i):
     # Load test essay feature vectors
     tfidf_test = get_tfidf(i, 'test')
     extra_features_test = get_extra_features(i, 'test')
-    # pdb.set_trace()
     test_features = np.concatenate((tfidf_test,extra_features_test),1)
 
     normalized_tfidf_test = get_normalized_tfidf(i, 'test')
@@ -222,17 +232,25 @@ def combined_test(i):
     normalized_test_features = np.concatenate((normalized_tfidf_test,normalized_extra_features_test),1)
 
 
-    predicted = []
-    normalized_predicted = []
-    tfidf_predicted = []
-    extra_features_predicted = []
-    lda_predicted = []
+    knnr_predicted = []
+    svr_predicted = []
+    knnr_normalized_predicted = []
+    svr_normalized_predicted = []
+    knnr_tfidf_predicted = []
+    svr_tfidf_predicted = []
+    knnr_extra_features_predicted = []
+    svr_extra_features_predicted = []
+    knnr_lda_predicted = []
+    svr_lda_predicted = []
+    knnr_tfidf_extra_predicted = []
+    svr_tfidf_extra_predicted = []
 
     actual = []
 
     print colored('Testing...', 'cyan')
 
     for idx, test_essay in enumerate(test_essays):
+
         doc_bow = myDict.doc2bow(test_essay)
         doc_lda = lda[doc_bow]
         
@@ -243,377 +261,84 @@ def combined_test(i):
         tfidf_test_feature = tfidf_test[index]
         extra_features_test_feature = extra_features_test[index]
         lda_test_feature = vectorized_lda
+        tfidf_extra_feature = test_features[index]
 
-        predicted_score = neigh.predict(test_feature)
-        normalized_predicted_score = normalized_neigh.predict(normalized_test_feature)
-        tfidf_predicted_score = tfidf_neigh.predict(tfidf_test_feature)
-        extra_features_predicted_score = extra_features_neigh.predict(extra_features_test_feature)
-        lda_predicted_score = lda_neigh.predict(lda_test_feature)
+        knnr_predicted_score = knnr_classifier.predict(test_feature)
+        svr_predicted_score = svr_classifier.predict(test_feature)
+        knnr_normalized_predicted_score = normalized_knnr_classifier.predict(normalized_test_feature)
+        svr_normalized_predicted_score = normalized_svr_classifier.predict(normalized_test_feature)
+        knnr_tfidf_predicted_score = tfidf_knnr_classifier.predict(tfidf_test_feature)
+        svr_tfidf_predicted_score = tfidf_svr_classifier.predict(tfidf_test_feature)
+        knnr_extra_features_predicted_score = extra_features_knnr_classifier.predict(extra_features_test_feature)
+        svr_extra_features_predicted_score = extra_features_svr_classifier.predict(extra_features_test_feature)
+        knnr_lda_predicted_score = lda_knnr_classifier.predict(lda_test_feature)
+        svr_lda_predicted_score = lda_svr_classifier.predict(lda_test_feature)        
+        knnr_tfidf_extra_predicted_score = tfidf_extra_knnr_classifier.predict(tfidf_extra_feature)
+        svr_tfidf_extra_predicted_score = tfidf_extra_svr_classifier.predict(tfidf_extra_feature)
 
         actual.append(float(test_scores[idx]))
-        predicted.append(float(knnr_classifier.predict(test_feature)))
-        normalized_predicted.append(float(normalized_knnr_classifier.predict(normalized_test_feature)))
-        tfidf_predicted.append(float(tfidf_knnr_classifier.predict(tfidf_test_feature)))
-        extra_features_predicted.append(float(extra_features_knnr_classifier.predict(extra_features_test_feature)))
-        lda_predicted.append(float(lda_knnr_classifier.predict(lda_test_feature)))
+        knnr_predicted.append(float(knnr_predicted_score))
+        svr_predicted.append(float(svr_predicted_score))
+        knnr_normalized_predicted.append(float(knnr_normalized_predicted_score))
+        svr_normalized_predicted.append(float(svr_normalized_predicted_score))
+        knnr_tfidf_predicted.append(float(knnr_tfidf_predicted_score))
+        svr_tfidf_predicted.append(float(svr_tfidf_predicted_score))
+        knnr_extra_features_predicted.append(float(knnr_extra_features_predicted_score))
+        svr_extra_features_predicted.append(float(svr_extra_features_predicted_score))
+        knnr_lda_predicted.append(float(knnr_lda_predicted_score))
+        svr_lda_predicted.append(float(svr_lda_predicted_score))
+        knnr_tfidf_extra_predicted.append(float(knnr_tfidf_extra_predicted_score))
+        svr_tfidf_extra_predicted.append(float(svr_tfidf_extra_predicted_score))
 
+        print colored('essay #%d tested' % idx, 'cyan')
         index += 1
 
+    # pickle data
+    pickle.dump(actual, open('data/set%d_actual_scores.pkl' % i, 'w+'))
+    pickle.dump(knnr_predicted, open('data/set%d_knnr_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(svr_predicted, open('data/set%d_svr_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(knnr_normalized_predicted, open('data/set%d_knnr_normalized_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(svr_normalized_predicted, open('data/set%d_svr_normalized_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(knnr_tfidf_predicted, open('data/set%d_knnr_tfidf_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(svr_tfidf_predicted, open('data/set%d_svr_tfidf_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(knnr_extra_features_predicted, open('data/set%d_knnr_statistics_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(svr_extra_features_predicted, open('data/set%d_svr_statistics_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(knnr_lda_predicted, open('data/set%d_knnr_lda_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(svr_lda_predicted, open('data/set%d_svr_lda_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(knnr_tfidf_extra_predicted, open('data/set%d_knnr_tfidf_statistics_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(svr_tfidf_extra_predicted, open('data/set%d_svr_tfidf_statistics_predicted_scores.pkl' % i, 'w+'))
+    print colored('essay set%d data dumped' % i, 'grey')
+
     print colored('ESSAY SET %d' % i, 'green', attrs=['bold'])
-    print colored('KNN MEAN SQUARE: %f' % mean_squared_error(actual, predicted), 'green', attrs=['bold'])
-    print colored('KNN MEAN ABSOLUTE: %f' % mean_absolute_error(actual, predicted), 'green', attrs=['bold'])
-
-    print colored('(NORMALIZED) KNN MEAN SQUARE: %f' % mean_squared_error(actual, normalized_predicted), 'green', attrs=['bold'])
-    print colored('(NORMALIZED) KNN MEAN ABSOLUTE: %f' % mean_absolute_error(actual, normalized_predicted), 'green', attrs=['bold'])
-
-    print colored('(TFIDF) KNN MEAN SQUARE: %f' % mean_squared_error(actual, tfidf_predicted), 'green', attrs=['bold'])
-    print colored('(TFIDF) KNN MEAN ABSOLUTE: %f' % mean_absolute_error(actual, tfidf_predicted), 'green', attrs=['bold'])
-
-    print colored('(STATISTICS) KNN MEAN SQUARE: %f' % mean_squared_error(actual, extra_features_predicted), 'green', attrs=['bold'])
-    print colored('(STATISTICS) KNN MEAN ABSOLUTE: %f' % mean_absolute_error(actual, extra_features_predicted), 'green', attrs=['bold'])
-
-    print colored('(LDA) KNN MEAN SQUARE: %f' % mean_squared_error(actual, lda_predicted), 'green', attrs=['bold'])
-    print colored('(LDA) KNN MEAN ABSOLUTE: %f' % mean_absolute_error(actual, lda_predicted), 'green', attrs=['bold'])
-
-# def test(i):
-#     # Get feature vectors
-#     tfidf_vectors = get_tfidf(i, 'train')
-#     extra_features_vector = get_extra_features(i, 'train')
-#     num_topics_for_lda = 30
-#     lda,lda_vector = get_lda(i, 100, 1, num_topics_for_lda)
-#     train_features = np.concatenate((tfidf_vectors,extra_features_vector),1)
-#     train_features = np.concatenate((lda_vector,train_features),1)
-#     print colored('feature vectors loaded', 'cyan')
-
-#     # Set up classifiers
-#     neigh = knn(n_neighbors=5, weights = 'distance')
-#     svm_classifier = svm()
-#     svr_classifier = svr()
-#     knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
-
-#     # Load training essay scores
-#     scores = []
-#     with open('data/set%d.scores' % i) as f:
-#         for score in f:
-#             scores.append(int(score.split('\n')[0]))
-
-#     # Load training essay dictionary and corpus
-#     myDict = gensim.corpora.Dictionary.load('data/set%d.dict' % i)
-#     corpus = gensim.corpora.MmCorpus('data/set%d.mm' % i)
-
-#     neigh.fit(train_features, scores)
-#     svm_classifier.fit(train_features, scores)
-#     knnr_classifier.fit(train_features, scores)
-
-#     test_essays,test_scores = get_test_examples(i)
-
-#     num_correct_neigh = 0
-#     num_correct_svm = 0
-#     num_correct_svr = 0
-
-#     index = 0
-
-#     # Load test essay feature vectors
-#     tfidf_test = get_tfidf(i, 'test')
-#     extra_features_test = get_extra_features(i, 'test')
-#     test_features = np.concatenate((tfidf_test,extra_features_test),1)
-
-#     predicted = []
-#     actual = []
-#     print colored('Testing...', 'cyan')
-#     for idx, test_essay in enumerate(test_essays):
-#         doc_bow = myDict.doc2bow(test_essay)
-#         doc_lda = lda[doc_bow]
-        
-#         vectorized_lda = topic_distribution_to_vector(doc_lda, num_topics_for_lda)
-#         test_feature = np.concatenate((vectorized_lda, test_features[index]), 1)        
-
-#         predicted_score = neigh.predict(test_feature)
-#         # print "Actual:", test_scores[idx], "Predicted:", predicted_score
-#         if abs(int(test_scores[idx]) - int(predicted_score[0])) <= 1:
-#             num_correct_neigh += 1
-
-#         predicted_score2 = svm_classifier.predict(test_feature)
-#         if abs(int(test_scores[idx]) - int(predicted_score2[0])) <= 1:
-#             num_correct_svm += 1
-
-#         print "Actual:", test_scores[idx], "Predicted:", predicted_score
-
-#         predicted.append(float(knnr_classifier.predict(test_feature)))
-#         actual.append(float(test_scores[idx]))
-#         index += 1
-
-#     accuracy_knn = num_correct_neigh / float(len(test_scores))
-#     accuracy_svm = num_correct_svm / float(len(test_scores))
-
-#     print colored('ESSAY SET %d KNN ACCURACY: %f' % (i, 100*accuracy_knn), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d SVM ACCURACY: %f' % (i, 100*accuracy_svm), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_squared_error(actual, predicted)), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_absolute_error(actual, predicted)), 'green', attrs=['bold'])
-
-# def normalized_test(i):
-#     # Get feature vectors
-#     tfidf_vectors = get_normalized_tfidf(i, 'train')
-#     extra_features_vector = get_normalized_extra_features(i, 'train')
-#     num_topics_for_lda = 30
-#     lda,lda_vector = get_lda(i, 100, 1, num_topics_for_lda)
-#     train_features = np.concatenate((tfidf_vectors,extra_features_vector),1)
-#     train_features = np.concatenate((lda_vector,train_features),1)
-#     print colored('feature vectors loaded', 'cyan')
-
-#     # Set up classifiers
-#     neigh = knn(n_neighbors=5, weights = 'distance')
-#     svm_classifier = svm()
-#     svr_classifier = svr()
-#     knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
-
-#     # Load training essay scores
-#     scores = []
-#     with open('data/set%d.scores' % i) as f:
-#         for score in f:
-#             scores.append(int(score.split('\n')[0]))
-
-#     # Load training essay dictionary and corpus
-#     myDict = gensim.corpora.Dictionary.load('data/set%d.dict' % i)
-#     corpus = gensim.corpora.MmCorpus('data/set%d.mm' % i)
-
-#     neigh.fit(train_features, scores)
-#     svm_classifier.fit(train_features, scores)
-#     knnr_classifier.fit(train_features, scores)
-
-#     test_essays,test_scores = get_test_examples(i)
-
-#     num_correct_neigh = 0
-#     num_correct_svm = 0
-#     num_correct_svr = 0
-
-#     index = 0
-
-#     # Load test essay feature vectors
-#     tfidf_test = get_tfidf(i, 'test')
-#     extra_features_test = get_extra_features(i, 'test')
-#     test_features = np.concatenate((tfidf_test,extra_features_test),1)
-
-#     predicted = []
-#     actual = []
-#     print colored('Testing...', 'cyan')
-#     for idx, test_essay in enumerate(test_essays):
-#         doc_bow = myDict.doc2bow(test_essay)
-#         doc_lda = lda[doc_bow]
-        
-#         vectorized_lda = topic_distribution_to_vector(doc_lda, num_topics_for_lda)
-#         test_feature = np.concatenate((vectorized_lda, test_features[index]), 1)        
-
-#         predicted_score = neigh.predict(test_feature)
-#         # print "Actual:", test_scores[idx], "Predicted:", predicted_score
-#         if abs(int(test_scores[idx]) - int(predicted_score[0])) <= 1:
-#             num_correct_neigh += 1
-
-#         predicted_score2 = svm_classifier.predict(test_feature)
-#         if abs(int(test_scores[idx]) - int(predicted_score2[0])) <= 1:
-#             num_correct_svm += 1
-
-#         print "Actual:", test_scores[idx], "Predicted:", predicted_score
-
-#         predicted.append(float(knnr_classifier.predict(test_feature)))
-#         actual.append(float(test_scores[idx]))
-#         index += 1
-
-#     accuracy_knn = num_correct_neigh / float(len(test_scores))
-#     accuracy_svm = num_correct_svm / float(len(test_scores))
-
-#     print colored('ESSAY SET %d KNN ACCURACY: %f' % (i, 100*accuracy_knn), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d SVM ACCURACY: %f' % (i, 100*accuracy_svm), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_squared_error(actual, predicted)), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_absolute_error(actual, predicted)), 'green', attrs=['bold'])
-
-
-# def tfidf_test(i):
-#     # Get feature vectors
-#     train_features = get_tfidf(i, 'train')
-
-#     # Set up classifiers
-#     neigh = knn(n_neighbors=5, weights = 'distance')
-#     svm_classifier = svm()
-#     svr_classifier = svr()
-#     knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
-
-#     # Load training essay scores
-#     scores = []
-#     with open('data/set%d.scores' % i) as f:
-#         for score in f:
-#             scores.append(int(score.split('\n')[0]))
-
-#     neigh.fit(train_features, scores)
-#     svm_classifier.fit(train_features, scores)
-#     knnr_classifier.fit(train_features, scores)
-
-#     test_essays,test_scores = get_test_examples(i)
-
-#     num_correct_neigh = 0
-#     num_correct_svm = 0
-#     num_correct_svr = 0
-
-#     index = 0
-#     test_features = get_tfidf(i, 'test')
-
-#     predicted = []
-#     actual = []
-
-#     for idx, test_essay in enumerate(test_essays):
-#         test_feature = test_features[index]   
-
-#         predicted_score = neigh.predict(test_feature)
-#         # print "Actual:", test_scores[idx], "Predicted:", predicted_score
-#         if abs(int(test_scores[idx]) - int(predicted_score[0])) <= 1:
-#             num_correct_neigh += 1
-
-#         predicted_score2 = svm_classifier.predict(test_feature)
-#         if abs(int(test_scores[idx]) - int(predicted_score2[0])) <= 1:
-#             num_correct_svm += 1
-
-#         print "Actual:", test_scores[idx], "Predicted:", predicted_score
-
-#         predicted.append(float(knnr_classifier.predict(test_feature)))
-#         actual.append(float(test_scores[idx]))
-
-#         index += 1
-
-#     accuracy_knn = num_correct_neigh / float(len(test_scores))
-#     accuracy_svm = num_correct_svm / float(len(test_scores))
-
-#     print colored('ESSAY SET %d KNN ACCURACY: %f' % (i, 100*accuracy_knn), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d SVM ACCURACY: %f' % (i, 100*accuracy_svm), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_squared_error(actual, predicted)), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_absolute_error(actual, predicted)), 'green', attrs=['bold'])
-
-# def extra_features_test(i):
-#     # Get feature vectors
-#     train_features = get_extra_features(i, 'train')
-
-#     # Set up classifiers
-#     neigh = knn(n_neighbors=5, weights = 'distance')
-#     svm_classifier = svm()
-#     svr_classifier = svr()
-#     knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
-
-#     # Load training essay scores
-#     scores = []
-#     with open('data/set%d.scores' % i) as f:
-#         for score in f:
-#             scores.append(int(score.split('\n')[0]))
-
-#     neigh.fit(train_features, scores)
-#     svm_classifier.fit(train_features, scores)
-#     knnr_classifier.fit(train_features, scores)
-
-#     test_essays,test_scores = get_test_examples(i)
-
-#     num_correct_neigh = 0
-#     num_correct_svm = 0
-#     num_correct_svr = 0
-
-#     index = 0
-#     test_features = get_extra_features(i, 'test')
-
-#     predicted = []
-#     actual = []
-
-#     for idx, test_essay in enumerate(test_essays):
-#         test_feature = test_features[index]   
-
-#         predicted_score = neigh.predict(test_feature)
-#         # print "Actual:", test_scores[idx], "Predicted:", predicted_score
-#         if abs(int(test_scores[idx]) - int(predicted_score[0])) <= 1:
-#             num_correct_neigh += 1
-
-#         predicted_score2 = svm_classifier.predict(test_feature)
-#         if abs(int(test_scores[idx]) - int(predicted_score2[0])) <= 1:
-#             num_correct_svm += 1
-
-#         print "Actual:", test_scores[idx], "Predicted:", predicted_score
-
-#         predicted.append(float(knnr_classifier.predict(test_feature)))
-#         actual.append(float(test_scores[idx]))
-
-#         index += 1
-
-#     accuracy_knn = num_correct_neigh / float(len(test_scores))
-#     accuracy_svm = num_correct_svm / float(len(test_scores))
-
-#     print colored('ESSAY SET %d KNN ACCURACY: %f' % (i, 100*accuracy_knn), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d SVM ACCURACY: %f' % (i, 100*accuracy_svm), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_squared_error(actual, predicted)), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_absolute_error(actual, predicted)), 'green', attrs=['bold'])
-
-# def lda_test(i):
-#     # Get feature vectors
-#     num_topics_for_lda = 30
-#     lda,lda_vector = get_lda(i, 100, 1, num_topics_for_lda)
-#     train_features = lda_vector
-#     print colored('feature vectors loaded', 'cyan')
-
-#     # Set up classifiers
-#     neigh = knn(n_neighbors=5, weights = 'distance')
-#     svm_classifier = svm()
-#     svr_classifier = svr()
-#     knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
-
-#     # Load training essay scores
-#     scores = []
-#     with open('data/set%d.scores' % i) as f:
-#         for score in f:
-#             scores.append(int(score.split('\n')[0]))
-
-#     # Load training essay dictionary and corpus
-#     myDict = gensim.corpora.Dictionary.load('data/set%d.dict' % i)
-#     corpus = gensim.corpora.MmCorpus('data/set%d.mm' % i)
-
-#     neigh.fit(train_features, scores)
-#     svm_classifier.fit(train_features, scores)
-#     knnr_classifier.fit(train_features, scores)
-
-#     test_essays,test_scores = get_test_examples(i)
-
-#     num_correct_neigh = 0
-#     num_correct_svm = 0
-#     num_correct_svr = 0
-
-#     index = 0
-
-#     predicted = []
-#     actual = []
-
-#     for idx, test_essay in enumerate(test_essays):
-#         doc_bow = myDict.doc2bow(test_essay)
-#         doc_lda = lda[doc_bow]
-        
-#         test_feature = topic_distribution_to_vector(doc_lda, num_topics_for_lda)    
-
-#         predicted_score = neigh.predict(test_feature)
-#         # print "Actual:", test_scores[idx], "Predicted:", predicted_score
-#         if abs(int(test_scores[idx]) - int(predicted_score[0])) <= 1:
-#             num_correct_neigh += 1
-
-#         predicted_score2 = svm_classifier.predict(test_feature)
-#         if abs(int(test_scores[idx]) - int(predicted_score2[0])) <= 1:
-#             num_correct_svm += 1
-
-#         print "Actual:", test_scores[idx], "Predicted:", predicted_score
-
-#         predicted.append(float(knnr_classifier.predict(test_feature)))
-#         actual.append(float(test_scores[idx]))
-
-#         index += 1
-
-#     accuracy_knn = num_correct_neigh / float(len(test_scores))
-#     accuracy_svm = num_correct_svm / float(len(test_scores))
-
-#     print colored('ESSAY SET %d KNN ACCURACY: %f' % (i, 100*accuracy_knn), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d SVM ACCURACY: %f' % (i, 100*accuracy_svm), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_squared_error(actual, predicted)), 'green', attrs=['bold'])
-#     print colored('ESSAY SET %d KNN MEAN SQUARE: %f' % (i, mean_absolute_error(actual, predicted)), 'green', attrs=['bold'])
-
+    knnr_actual,knnr_predicted = filter_nan(actual, knnr_predicted)
+    print colored('(RAW) KNN MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(knnr_actual, knnr_predicted), mean_absolute_error(knnr_actual, knnr_predicted)), 'green', attrs=['bold'])
+    svr_actual,svr_predicted = filter_nan(actual, svr_predicted)
+    print colored('(RAW) SVM MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(svr_actual, svr_predicted), mean_absolute_error(svr_actual, svr_predicted)), 'green', attrs=['bold'])
+
+    knnr_normalized_actual,knnr_normalized_predicted = filter_nan(actual, knnr_normalized_predicted)
+    print colored('(NORMALIZED) KNN MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(knnr_normalized_actual, knnr_normalized_predicted), mean_absolute_error(knnr_normalized_actual, knnr_normalized_predicted)), 'green', attrs=['bold'])
+    svr_normalized_actual,svr_normalized_predicted = filter_nan(actual, svr_normalized_predicted)
+    print colored('(NORMALIZED) SVM MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(svr_normalized_actual, svr_normalized_predicted), mean_absolute_error(svr_normalized_actual, svr_normalized_predicted)), 'green', attrs=['bold'])
+
+    knnr_tfidf_extra_actual,knnr_tfidf_extra_predicted = filter_nan(actual, knnr_tfidf_extra_predicted)
+    print colored('(TFIDF + STATISTICS) KNN MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(knnr_tfidf_extra_actual, knnr_tfidf_extra_predicted), mean_absolute_error(knnr_tfidf_extra_actual, knnr_tfidf_extra_predicted)), 'green', attrs=['bold'])
+    svr_tfidf_extra_actual,svr_tfidf_extra_predicted = filter_nan(actual, svr_tfidf_extra_predicted)
+    print colored('(TFIDF + STATISTICS) SVM MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(svr_tfidf_extra_actual, svr_tfidf_extra_predicted), mean_absolute_error(svr_tfidf_extra_actual, svr_tfidf_extra_predicted)), 'green', attrs=['bold'])
+
+    knnr_tfidf_actual,knnr_tfidf_predicted = filter_nan(actual, knnr_tfidf_predicted)
+    print colored('(TFIDF) KNN MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(knnr_tfidf_actual, knnr_tfidf_predicted), mean_absolute_error(knnr_tfidf_actual, knnr_tfidf_predicted)), 'green', attrs=['bold'])
+    svr_tfidf_actual,svr_tfidf_predicted = filter_nan(actual, svr_tfidf_predicted)
+    print colored('(TFIDF) SVM MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(svr_tfidf_actual, svr_tfidf_predicted), mean_absolute_error(svr_tfidf_actual, svr_tfidf_predicted)), 'green', attrs=['bold'])
+
+    knnr_extra_features_actual,knnr_extra_features_predicted = filter_nan(actual, knnr_extra_features_predicted)
+    print colored('(STATISTICS) KNN MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(knnr_extra_features_actual, knnr_extra_features_predicted), mean_absolute_error(knnr_extra_features_actual, knnr_extra_features_predicted)), 'green', attrs=['bold'])
+    svr_extra_features_actual,svr_extra_features_predicted = filter_nan(actual, svr_extra_features_predicted)
+    print colored('(STATISTICS) SVM MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(svr_extra_features_actual, svr_extra_features_predicted), mean_absolute_error(svr_extra_features_actual, svr_extra_features_predicted)), 'green', attrs=['bold'])
+
+    knnr_lda_actual,knnr_lda_predicted = filter_nan(actual, knnr_lda_predicted)
+    print colored('(LDA) KNN MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(knnr_lda_actual, knnr_lda_predicted), mean_absolute_error(knnr_lda_actual, knnr_lda_predicted)), 'green', attrs=['bold'])
+    svr_lda_actual,svr_lda_predicted = filter_nan(actual, svr_lda_predicted)
+    print colored('(LDA) SVM MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(svr_lda_actual, svr_lda_predicted), mean_absolute_error(svr_lda_actual, svr_lda_predicted)), 'green', attrs=['bold'])
 
 ###################
 #       MAIN      #
@@ -621,6 +346,8 @@ def combined_test(i):
 
 def main():
     essay_sets = [1,2,3,4,5,6,7,8]
+    # essay_sets = [4,5,6,7,8]
+    # essay_sets = [7,8]
 
     for essay_set in essay_sets:
         combined_test(essay_set)
