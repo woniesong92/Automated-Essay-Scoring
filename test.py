@@ -145,12 +145,14 @@ def combined_test(i):
     extra_features_neigh = knn(n_neighbors=5, weights = 'distance')
     extra_features_svm_classifier = svm()
     extra_features_svr_classifier = svr()
-    extra_features_knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
+    extra_features_knnr_classifier = knnR(n_neighbors=5)
 
     lda_neigh = knn(n_neighbors=5, weights = 'distance')
     lda_svm_classifier = svm()
     lda_svr_classifier = svr()
     lda_knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
+
+    print colored('classifiers setup', 'cyan')
 
     # Load training essay scores
     scores = []
@@ -207,9 +209,12 @@ def combined_test(i):
 
     index = 0
 
+    print colored('classifiers trained', 'cyan')
+
     # Load test essay feature vectors
     tfidf_test = get_tfidf(i, 'test')
     extra_features_test = get_extra_features(i, 'test')
+    # pdb.set_trace()
     test_features = np.concatenate((tfidf_test,extra_features_test),1)
 
     normalized_tfidf_test = get_normalized_tfidf(i, 'test')
@@ -240,7 +245,7 @@ def combined_test(i):
         lda_test_feature = vectorized_lda
 
         predicted_score = neigh.predict(test_feature)
-        noramlized_predicted_score = noramlized_neigh.predict(normalized_test_feature)
+        normalized_predicted_score = normalized_neigh.predict(normalized_test_feature)
         tfidf_predicted_score = tfidf_neigh.predict(tfidf_test_feature)
         extra_features_predicted_score = extra_features_neigh.predict(extra_features_test_feature)
         lda_predicted_score = lda_neigh.predict(lda_test_feature)
@@ -618,7 +623,7 @@ def main():
     essay_sets = [1,2,3,4,5,6,7,8]
 
     for essay_set in essay_sets:
-        combinded_test(essay_set)
+        combined_test(essay_set)
 
 if __name__ == "__main__":
     main()      

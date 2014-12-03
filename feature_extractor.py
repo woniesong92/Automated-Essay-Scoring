@@ -71,9 +71,9 @@ class FeatureExtractor:
 
 
         # 5. part of speech 
-        pos_distributions = self.l1_norm([self.part_of_speech_tagging(essay) for essay in essays])
-        matrix = np.concatenate((pos_distributions, matrix),1)
-        print "DONE TAGGING"
+        # pos_distributions = self.l1_norm([self.part_of_speech_tagging(essay) for essay in essays])
+        # matrix = np.concatenate((pos_distributions, matrix),1)
+        # print "DONE TAGGING"
 
 
 
@@ -100,9 +100,9 @@ class FeatureExtractor:
         matrix = self.update_matrix(matrix, spelling_errors)
 
         # 5. part of speech 
-        pos_distributions = [self.part_of_speech_tagging(essay) for essay in essays]
-        matrix = np.concatenate((pos_distributions, matrix),1)
-        print "DONE TAGGING"
+        # pos_distributions = [self.part_of_speech_tagging(essay) for essay in essays]
+        # matrix = np.concatenate((pos_distributions, matrix),1)
+        # print "DONE TAGGING"
 
         return matrix
 
@@ -223,7 +223,7 @@ if __name__ == "__main__":
         test_examples = myParser.parse("data/set%d_test.tsv" % i)
         test_essays, test_scores = myFeatureExtractor.extract_essay_and_scores(test_examples)
 
-        test_statistics = myFeatureExtractor.extract_statistics(train_essays)
+        test_statistics = myFeatureExtractor.extract_statistics(test_essays)
         test_tfidf_matrix = myFeatureExtractor.extract_test_tfidf(tfidf_vec, test_essays)
 
         test_normalized_statistics = myFeatureExtractor.extract_normalized_statistics(test_essays)
