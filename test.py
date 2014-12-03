@@ -163,6 +163,7 @@ def combined_test(i):
     extra_features_train_features = extra_features_vector
     lda_train_features = lda_vector
     tfidf_extra_train_features = np.concatenate((tfidf_vectors,extra_features_vector),1)
+    lda_extra_train_features = np.concatenate((lda_vector,extra_features_vector),1)
 
     print colored('feature vectors loaded', 'cyan')
 
@@ -184,6 +185,10 @@ def combined_test(i):
 
     tfidf_extra_knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
     tfidf_extra_svr_classifier = svr()
+
+    lda_extra_knnr_classifier = knnR(n_neighbors=5, weights = 'distance')
+    lda_extra_svr_classifier = svr()
+
 
     print colored('classifiers setup', 'cyan')
 
@@ -216,6 +221,9 @@ def combined_test(i):
     tfidf_extra_knnr_classifier.fit(tfidf_extra_train_features, scores)
     tfidf_extra_svr_classifier.fit(tfidf_extra_train_features, scores)
 
+    lda_extra_knnr_classifier.fit(lda_extra_train_features, scores)
+    lda_extra_svr_classifier.fit(lda_extra_train_features, scores)
+
     test_essays,test_scores = get_test_examples(i)
 
     index = 0
@@ -244,6 +252,8 @@ def combined_test(i):
     svr_lda_predicted = []
     knnr_tfidf_extra_predicted = []
     svr_tfidf_extra_predicted = []
+    knnr_lda_extra_predicted = []
+    svr_lda_extra_predicted = []
 
     actual = []
 
@@ -262,6 +272,7 @@ def combined_test(i):
         extra_features_test_feature = extra_features_test[index]
         lda_test_feature = vectorized_lda
         tfidf_extra_feature = test_features[index]
+        lda_extra_feature = np.concatenate((vectorized_lda,extra_features_test[index]), 1)
 
         knnr_predicted_score = knnr_classifier.predict(test_feature)
         svr_predicted_score = svr_classifier.predict(test_feature)
@@ -275,6 +286,8 @@ def combined_test(i):
         svr_lda_predicted_score = lda_svr_classifier.predict(lda_test_feature)        
         knnr_tfidf_extra_predicted_score = tfidf_extra_knnr_classifier.predict(tfidf_extra_feature)
         svr_tfidf_extra_predicted_score = tfidf_extra_svr_classifier.predict(tfidf_extra_feature)
+        knnr_lda_extra_predicted_score = lda_extra_knnr_classifier.predict(lda_extra_feature)
+        svr_lda_extra_predicted_score = lda_extra_svr_classifier.predict(lda_extra_feature)
 
         actual.append(float(test_scores[idx]))
         knnr_predicted.append(float(knnr_predicted_score))
@@ -289,6 +302,8 @@ def combined_test(i):
         svr_lda_predicted.append(float(svr_lda_predicted_score))
         knnr_tfidf_extra_predicted.append(float(knnr_tfidf_extra_predicted_score))
         svr_tfidf_extra_predicted.append(float(svr_tfidf_extra_predicted_score))
+        knnr_lda_extra_predicted.append(float(knnr_lda_extra_predicted_score))
+        svr_lda_extra_predicted.append(float(svr_lda_extra_predicted_score))
 
         print colored('essay #%d tested' % idx, 'cyan')
         index += 1
@@ -307,6 +322,8 @@ def combined_test(i):
     pickle.dump(svr_lda_predicted, open('data/set%d_svr_lda_predicted_scores.pkl' % i, 'w+'))
     pickle.dump(knnr_tfidf_extra_predicted, open('data/set%d_knnr_tfidf_statistics_predicted_scores.pkl' % i, 'w+'))
     pickle.dump(svr_tfidf_extra_predicted, open('data/set%d_svr_tfidf_statistics_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(knnr_lda_extra_predicted, open('data/set%d_knnr_lda_statistics_predicted_scores.pkl' % i, 'w+'))
+    pickle.dump(svr_lda_extra_predicted, open('data/set%d_svr_lda_statistics_predicted_scores.pkl' % i, 'w+'))
     print colored('essay set%d data dumped' % i, 'grey')
 
     print colored('ESSAY SET %d' % i, 'green', attrs=['bold'])
@@ -324,6 +341,11 @@ def combined_test(i):
     print colored('(TFIDF + STATISTICS) KNN MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(knnr_tfidf_extra_actual, knnr_tfidf_extra_predicted), mean_absolute_error(knnr_tfidf_extra_actual, knnr_tfidf_extra_predicted)), 'green', attrs=['bold'])
     svr_tfidf_extra_actual,svr_tfidf_extra_predicted = filter_nan(actual, svr_tfidf_extra_predicted)
     print colored('(TFIDF + STATISTICS) SVM MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(svr_tfidf_extra_actual, svr_tfidf_extra_predicted), mean_absolute_error(svr_tfidf_extra_actual, svr_tfidf_extra_predicted)), 'green', attrs=['bold'])
+
+    knnr_lda_extra_actual,knnr_lda_extra_predicted = filter_nan(actual, knnr_lda_extra_predicted)
+    print colored('(LDA + STATISTICS) KNN MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(knnr_lda_extra_actual, knnr_lda_extra_predicted), mean_absolute_error(knnr_lda_extra_actual, knnr_lda_extra_predicted)), 'green', attrs=['bold'])
+    svr_lda_extra_actual,svr_lda_extra_predicted = filter_nan(actual, svr_lda_extra_predicted)
+    print colored('(LDA + STATISTICS) SVM MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(svr_lda_extra_actual, svr_lda_extra_predicted), mean_absolute_error(svr_lda_extra_actual, svr_lda_extra_predicted)), 'green', attrs=['bold'])
 
     knnr_tfidf_actual,knnr_tfidf_predicted = filter_nan(actual, knnr_tfidf_predicted)
     print colored('(TFIDF) KNN MEAN SQUARE, ABSOLUTE: ', 'cyan'), colored('%f, %f' % (mean_squared_error(knnr_tfidf_actual, knnr_tfidf_predicted), mean_absolute_error(knnr_tfidf_actual, knnr_tfidf_predicted)), 'green', attrs=['bold'])

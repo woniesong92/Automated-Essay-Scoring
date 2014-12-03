@@ -11,14 +11,13 @@ import logging, gensim, bz2
 from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.feature_selection import SelectKBest
-from sklearn.feature_selection import chi2
+from sklearn.feature_selection import f_regression
 from sklearn.neighbors import KNeighborsClassifier as knn
 from sklearn.neighbors import KNeighborsRegressor as knnR
 from sklearn.svm import SVC as svm
 from sklearn.svm import SVR as svr
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
-
 import numpy as np
 
 
@@ -71,15 +70,15 @@ def setUp():
         corpus_old = corpus
 
         # feature selection
-        bad_good_features = get_best_features(corpus, scores, len(myDict.keys()) * .8) #feature selected corpus
-        bad_ids = []
-        for i in range(len(bad_good_features)):
-            if not bad_good_features[i]:
-                bad_ids.append(bad_good_features[i])
-        myDict.filter_tokens(bad_ids=bad_ids)
+        # bad_good_features = get_best_features(corpus, scores, len(myDict.keys()) * .9) #feature selected corpus
+        # bad_ids = []
+        # for i in range(len(bad_good_features)):
+        #     if not bad_good_features[i]:
+        #         bad_ids.append(bad_good_features[i])
+        # myDict.filter_tokens(bad_ids=bad_ids)
 
-        myDict.filter_extremes(no_below=1, no_above=0.1, keep_n=100000)
-        myDict.compactify()
+        # myDict.filter_extremes(no_below=1, no_above=0.1, keep_n=100000)
+        # myDict.compactify()
 
 
         corpus = [myDict.doc2bow(text) for text in texts]
@@ -137,6 +136,9 @@ def create_texts(essay_set):
     # texts = [stem_tokens(text, PorterStemmer()) for text in texts]
 
 
+
+
+
     """
     might be useful?
     """
@@ -170,11 +172,11 @@ def get_best_features(corpus, scores, num_features):
             new_document[word] = freq
         new_corpus.append(new_document)
     v = DictVectorizer()
-    X = v.fit_transform(new_corpus)
+    X = v.fit_transform(new_corpus).todense()
     y = scores
     # pdb.set_trace()
-    feature_selection = SelectKBest(chi2, k=num_features).fit(X, y)
-    new_X = SelectKBest(chi2, k=num_features).fit(X, y)
+    feature_selection = SelectKBest(f_regression, k=num_features).fit(X, y)
+    new_X = SelectKBest(f_regression, k=num_features).fit(X, y)
 
     return feature_selection.get_support()
 
