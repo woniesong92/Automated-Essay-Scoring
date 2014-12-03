@@ -68,6 +68,12 @@ class FeatureExtractor:
         matrix = self.update_matrix(matrix, spelling_errors)
 
         print "DONE AVERAGE LENGTH OF WORDS"
+
+
+        # 5. part of speech 
+
+
+
         return matrix
 
     def extract_statistics(self, essays):
@@ -85,6 +91,10 @@ class FeatureExtractor:
         words_avg_length_features = [self.words_avg_length(essay) for essay in essays]
         matrix = self.update_matrix(matrix, words_avg_length_features)
         print "DONE AVERAGE LENGTH OF WORDS"
+
+        # 4. spelling errors
+        spelling_errors = [self.spelling_errors(essay) for essay in essays]
+        matrix = self.update_matrix(matrix, spelling_errors)
 
         return matrix
 
