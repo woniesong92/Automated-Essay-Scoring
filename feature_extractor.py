@@ -7,6 +7,7 @@ import numpy as np
 import pickle
 import nltk
 import threading
+import math
 
 
 tag_dict = {'CC':0,'CD':1,'DT':2,'EX':3,'FW':4,'IN':5,'JJ':6,'JJR':7,'JJS':8,
@@ -43,21 +44,34 @@ class FeatureExtractor:
         # 1. tfidf 
         tfidf_vectorizer = Tfidf_Vectorizer()
         (tfidf, tfs) = tfidf_vectorizer.get_tfidf_vectors(essays)
-        # pdb.set_trace()
         matrix = np.array(tfs.todense())
         print "DONE TFIDF"
+
+
+
+
+        # EXTRA FEATURES
         # 2. word count
         word_counts_features = [len(essay.split()) for essay in essays]
-        matrix = self.update_matrix(matrix, word_counts_features)
+
         print "DONE WORD COUNT"
         # 3. number of different words
         num_diff_words_features = [self.num_diff_words(essay) for essay in essays]
-        matrix = self.update_matrix(matrix, num_diff_words_features)
+
         print "DONE NUM DIFF WORDS"
         # 4. average length of words
         words_avg_length_features = [self.words_avg_length(essay) for essay in essays]
-        matrix = self.update_matrix(matrix, words_avg_length_features)
+
         print "AVERAGE LENGTH OF WORDS"
+
+        extra_features = []
+        for essay in essays:
+            vector = [len(essay.split()), self.num_diff_words(essay), self.words_avg_length(essay)]
+            extra_features.append(self.l2_norm(vector))
+
+
+
+        matrix = np.concatenate((extra_features, matrix), 1)
 
         # 5. part of speech tagging
         # pos_distributions = [self.part_of_speech_tagging(essay) for essay in essays]
@@ -69,26 +83,38 @@ class FeatureExtractor:
         # Add the scores 
         # matrix = self.update_matrix(matrix, scores)
 
+
         return matrix, tfidf
 
     def transform_test_examples(self, test_examples, tfidf):
         essays, scores = self.extract_essay_and_scores(test_examples)
+
         # 1. tfidf
         matrix = np.array(tfidf.transform(essays).todense())
-        # pdb.set_trace()
         print "DONE TFIDF"
+
+        # EXTRA FEATURES
         # 2. word count
         word_counts_features = [len(essay.split()) for essay in essays]
-        matrix = self.update_matrix(matrix, word_counts_features)
+
         print "DONE WORD COUNT"
         # 3. number of different words
         num_diff_words_features = [self.num_diff_words(essay) for essay in essays]
-        matrix = self.update_matrix(matrix, num_diff_words_features)
+
         print "DONE NUM DIFF WORDS"
         # 4. average length of words
         words_avg_length_features = [self.words_avg_length(essay) for essay in essays]
-        matrix = self.update_matrix(matrix, words_avg_length_features)
+
         print "AVERAGE LENGTH OF WORDS"
+
+        extra_features = []
+        for essay in essays:
+            vector = [len(essay.split()), self.num_diff_words(essay), self.words_avg_length(essay)]
+            extra_features.append(self.l1_norm(vector))
+
+
+
+        matrix = np.concatenate((extra_features, matrix), 1)
 
         # 5. part of speech tagging
         # pos_distributions = [self.part_of_speech_tagging(essay) for essay in essays]
@@ -136,6 +162,14 @@ class FeatureExtractor:
         count = [float(pos)/total for pos in count]
         return np.array(count)
 
+    def l1_norm(self, vector):
+        s = sum(vector)
+        return [value/float(s) for value in vector]
+
+    def l2_norm(self, vector):
+        mag = math.sqrt(sum([value * value for value in vector]))
+        return [value/float(mag) for value in vector]
+
 class Worker(threading.Thread):
     def __init__(self, i):
         threading.Thread.__init__(self)
@@ -168,20 +202,23 @@ if __name__ == "__main__":
     myParser = parser.Parser()
     myFeatureExtractor = FeatureExtractor()
     for i in range(1,9):
-        worker = Worker(i)
-        worker.start() 
+        # worker = Worker(i)
+        # worker.start() 
         # SEQUENTIAL
-        # training_examples = myParser.parse("data/set%d_train.tsv" % i)
-        # test_examples = myParser.parse("data/set%d_test.tsv" % i)
+        training_examples = myParser.parse("data/set%d_train.tsv" % i)
+        test_examples = myParser.parse("data/set%d_test.tsv" % i)
 
-        # train_matrix, tfidf = myFeatureExtractor.transform_training_examples(training_examples)
-        # test_matrix = myFeatureExtractor.transform_test_examples(test_examples, tfidf)
+        train_matrix, tfidf = myFeatureExtractor.transform_training_examples(training_examples)
+        test_matrix = myFeatureExtractor.transform_test_examples(test_examples, tfidf)
         
-        # train_pkl = open("data/set_%d_train_matrix.pkl" % i, "w+")
-        # test_pkl = open("data/set_%d_test_matrix.pkl" % i, "w+")
+        train_pkl = open("data/set_%d_train_matrix.pkl" % i, "w+")
+        test_pkl = open("data/set_%d_test_matrix.pkl" % i, "w+")
 
-        # pickle.dump(train_matrix, train_pkl)
-        # pickle.dump(test_matrix, test_pkl)
+        pickle.dump(train_matrix, train_pkl)
+        pickle.dump(test_matrix, test_pkl)
+
+        train_pkl.close()
+        test_pkl.close()
 
 
 
