@@ -22,6 +22,12 @@ class Tfidf_Vectorizer:
         return stems
 
     def get_tfidf_vectors(self, essays):
-        tfidf = TfidfVectorizer(tokenizer=self.tokenize, norm='l2' ,stop_words='english')#, decode_error="ignore") 
+        tfidf = TfidfVectorizer(tokenizer=self.tokenize, stop_words='english')#, decode_error="ignore") 
         tfs = tfidf.fit_transform(essays)
         return (tfidf, tfs)
+
+    def get_normalized_tfidf_vectors(self, essays):
+        tfidf = TfidfVectorizer(tokenizer=self.tokenize, norm='l1' ,stop_words='english')#, decode_error="ignore") 
+        tfs = tfidf.fit_transform(essays)
+        return (tfidf, tfs)
+
