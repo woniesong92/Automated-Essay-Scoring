@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 import pdb
+import pickle
 
 
 model = Doc2Vec.load_word2vec_format('data/GoogleNews-vectors-negative300.bin', binary = True)
@@ -43,7 +44,8 @@ def classify(k, instance, training_data, training_scores):
 myParser = parser.Parser()
 myFeatureExtractor = feature_extractor.FeatureExtractor()
 
-i=1
+i=8
+print "going over essay set %d" %i
 
 training_examples = myParser.parse("data/set%d_train.tsv" % i)
 test_examples = myParser.parse("data/set%d_test.tsv" % i)
@@ -73,7 +75,15 @@ for i in range(len(test_essays)):
     actual_scores.append(actual)
     print "finished iteration %d" % i 
 
-pdb.set_trace()
+predicted_scores_file = open("data/set%d_google_knn_predicted.pkl" % i, "w+")
+actual_scores_file = open("data/set%d_google_knn_actual.pkl" % i, "w+")
+
+pickle.dump(predicted_scores, predicted_scores_file)
+pickle.dump(actual_scores, actual_scores_file)
+
+
+
+# pdb.set_trace()
 
 
 
