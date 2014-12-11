@@ -43,7 +43,7 @@ def classify(k, instance, training_data, training_scores):
 myParser = parser.Parser()
 myFeatureExtractor = feature_extractor.FeatureExtractor()
 
-i=1
+i=8
 
 training_examples = myParser.parse("data/set%d_train.tsv" % i)
 test_examples = myParser.parse("data/set%d_test.tsv" % i)
